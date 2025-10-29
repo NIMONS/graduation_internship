@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sản Phẩm AI Phân Loại Độ Tươi Hoa Quả</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}"
+    />
+  </head>
+  <body>
+    <header>
+      <h1>🍎 Sản Phẩm AI Phân Loại Độ Tươi Hoa Quả 🍌</h1>
+    </header>
+
+    <main>
+      <div class="card upload-card">
+        <h2>Upload Ảnh Hoa Quả</h2>
+
+        <div class="upload-section" id="uploadSection">
+          <div class="upload-area" id="uploadArea">
+            <span class="upload-icon">📁</span>
+            <div class="upload-text">Click để chọn ảnh</div>
+            <div class="upload-hint">Hỗ trợ: PNG, JPG, JPEG (tối đa 10MB)</div>
+            <input type="file" id="fileInput" accept="image/*" />
+          </div>
+        </div>
+
+        <div class="preview-section" id="previewSection">
+          <img id="previewImage" alt="Preview" />
+        </div>
+
+        <div class="button-row">
+          <button class="btn-analyze" id="predictBtn" disabled>
+            🔍 Phân tích ngay
+          </button>
+          <button class="btn-refresh" id="resetBtn">🔄 Làm mới</button>
+        </div>
+      </div>
+
+      <div class="card result-card">
+        <div class="empty-result" id="emptyResult">
+          <span class="empty-icon">📋</span>
+          <div class="empty-text">Kết quả sẽ hiển thị ở đây</div>
+        </div>
+
+        <div class="loading" id="loading">
+          <div class="spinner"></div>
+          <div class="loading-text">Đang phân tích...</div>
+        </div>
+
+        <div class="result-content" id="result">
+          <span class="result-icon" id="resultIcon"></span>
+          <div class="result-label" id="resultLabel"></div>
+
+          <div class="confidence-container">
+            <div class="confidence-label">Độ tin cậy</div>
+            <div class="confidence-bar">
+              <div class="confidence-fill" id="confidenceFill"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      const uploadArea = document.getElementById("uploadArea");
+      const uploadSection = document.getElementById("uploadSection");
+      const fileInput = document.getElementById("fileInput");
+      const previewSection = document.getElementById("previewSection");
+      const previewImage = document.getElementById("previewImage");
+      const predictBtn = document.getElementById("predictBtn");
+      const loading = document.getElementById("loading");
+      const emptyResult = document.getElementById("emptyResult");
+      const result = document.getElementById("result");
+      const resultIcon = document.getElementById("resultIcon");
+      const resultLabel = document.getElementById("resultLabel");
+      const confidenceFill = document.getElementById("confidenceFill");
+      const resetBtn = document.getElementById("resetBtn");
+      let selectedFile = null;
+
+      uploadArea.addEventListener("click", () => fileInput.click());
+      fileInput.addEventListener("change", (e) =>
+        handleFile(e.target.files[0])
+      );
+
+      function handleFile(file) {
+        if (!file || !file.type.startsWith("image/")) {
+          alert("Vui lòng chọn file ảnh hợp lệ (PNG, JPG, JPEG)");
+          return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+          alert("File quá lớn. Vui lòng chọn ảnh nhỏ hơn 10MB");
+          return;
+        }
+
+        selectedFile = file;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          previewImage.src = e.target.result;
+          previewSection.classList.add("active");
+          uploadSection.style.display = "none";
+          predictBtn.disabled = false;
+          emptyResult.style.display = "flex";
+          result.classList.remove("active");
+        };
+        reader.readAsDataURL(file);
+      }
+
+      predictBtn.addEventListener("click", async () => {
+        if (!selectedFile) return;
+
+        const formData = new FormData();
+        formData.append("image", selectedFile);
+
+        emptyResult.style.display = "none";
+        loading.classList.add("active");
+        result.classList.remove("active");
+        predictBtn.disabled = true;
+
+        try {
+          const response = await fetch("/predict", {
+            method: "POST",
+            body: formData,
+          });
+          const data = await response.json();
+          if (response.ok) showResult(data);
+          else alert(data.error || "Có lỗi xảy ra khi phân tích");
+        } catch (err) {
+          alert("Không thể kết nối đến server. Vui lòng thử lại.");
+        } finally {
+          loading.classList.remove("active");
+          predictBtn.disabled = false;
+        }
+      });
+
+      function showResult(data) {
+        const isFresh = data.label.toLowerCase().includes("fresh");
+        result.className = `result-content active ${
+          isFresh ? "fresh" : "rotten"
+        }`;
+        resultIcon.textContent = isFresh ? "✅" : "❌";
+        resultLabel.textContent = isFresh ? "Trái cây tươi" : "Trái cây hỏng";
+        confidenceFill.style.width = data.confidence + "%";
+        confidenceFill.textContent = data.confidence + "%";
+        emptyResult.style.display = "none";
+      }
+
+      resetBtn.addEventListener("click", () => {
+        selectedFile = null;
+        fileInput.value = "";
+        previewImage.src = "";
+        previewSection.classList.remove("active");
+        uploadSection.style.display = "block";
+        result.classList.remove("active");
+        emptyResult.style.display = "flex";
+        confidenceFill.style.width = "0%";
+        confidenceFill.textContent = "";
+        predictBtn.disabled = true;
+      });
+    </script>
+  </body>
+</html>
